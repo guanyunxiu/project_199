@@ -36,6 +36,16 @@ const routes = [
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/Settings.vue')
+      },
+      {
+        path: 'config-editor',
+        name: 'ConfigEditor',
+        component: () => import('@/views/ConfigEditor.vue')
+      },
+      {
+        path: 'advanced-simulation',
+        name: 'AdvancedSimulation',
+        component: () => import('@/views/AdvancedSimulation.vue')
       }
     ]
   }

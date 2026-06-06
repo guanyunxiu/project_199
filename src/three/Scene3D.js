@@ -333,6 +333,261 @@ export class Scene3D {
     this.controls = null
     this.animator = null
     this.simulation = null
+    this.configNodes = []
+    this.configPaths = []
+  }
+
+  updateFromConfig(config) {
+    this.clearConfigObjects()
+
+    if (config.nodes) {
+      config.nodes.forEach(node => {
+        this.createConfigNode(node)
+      })
+    }
+
+    if (config.paths) {
+      config.paths.forEach(path => {
+        this.createConfigPath(path)
+      })
+    }
+
+    if (this.simulation) {
+      const simConfig = {
+        stations: config.nodes.filter(n => n.type === 'station').map(n => ({
+          id: n.id,
+          name: n.params.name,
+          processTime: n.params.processTime || 20,
+          position: n.position3D,
+          capacity: n.params.capacity || 1,
+          dependencies: n.params.dependencies || []
+        })),
+        paths: config.paths.map(p => ({
+          id: p.id,
+          name: p.name,
+          points: p.points3D,
+          speed: p.speed
+        }))
+      }
+      
+      if (this.simulation.loadConfig) {
+        this.simulation.loadConfig(simConfig)
+      }
+    }
+
+    this.store.addOutput('3D场景已从组态编辑器同步更新')
+  }
+
+  clearConfigObjects() {
+    this.configNodes.forEach(obj => {
+      this.scene.remove(obj)
+      obj.traverse(child => {
+        if (child.isMesh) {
+          child.geometry?.dispose()
+          if (Array.isArray(child.material)) {
+            child.material.forEach(m => m.dispose())
+          } else {
+            child.material?.dispose()
+          }
+        }
+      })
+    })
+    this.configNodes = []
+
+    this.configPaths.forEach(obj => {
+      this.scene.remove(obj)
+      obj.geometry?.dispose()
+      obj.material?.dispose()
+    })
+    this.configPaths = []
+  }
+
+  createConfigNode(node) {
+    const group = new THREE.Group()
+    group.position.set(node.position3D.x, 0, node.position3D.z)
+    group.userData.nodeId = node.id
+    group.userData.nodeType = node.type
+    group.userData.configNode = true
+
+    const color = new THREE.Color(this.getNodeColor(node.type))
+    const opacity = node.params.enabled ? 0.8 : 0.3
+
+    if (node.type === 'station') {
+      const baseGeo = new THREE.BoxGeometry(3, 0.2, 3)
+      const baseMat = new THREE.MeshStandardMaterial({ 
+        color, 
+        opacity, 
+        transparent: true,
+        emissive: color,
+        emissiveIntensity: 0.2
+      })
+      const base = new THREE.Mesh(baseGeo, baseMat)
+      base.position.y = 0.1
+      group.add(base)
+
+      const pillarGeo = new THREE.CylinderGeometry(0.1, 0.1, 2, 8)
+      const pillarMat = new THREE.MeshStandardMaterial({ color: 0x333333 })
+      const positions = [[-1.2, -1.2], [1.2, -1.2], [-1.2, 1.2], [1.2, 1.2]]
+      positions.forEach(pos => {
+        const pillar = new THREE.Mesh(pillarGeo, pillarMat)
+        pillar.position.set(pos[0], 1, pos[1])
+        group.add(pillar)
+      })
+
+      const roofGeo = new THREE.BoxGeometry(3.2, 0.1, 3.2)
+      const roofMat = new THREE.MeshStandardMaterial({ color, opacity: 0.5, transparent: true })
+      const roof = new THREE.Mesh(roofGeo, roofMat)
+      roof.position.y = 2.1
+      group.add(roof)
+    } else if (node.type === 'robot-arm') {
+      const baseGeo = new THREE.CylinderGeometry(0.5, 0.6, 0.3, 16)
+      const baseMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.1 })
+      const base = new THREE.Mesh(baseGeo, baseMat)
+      base.position.y = 0.15
+      group.add(base)
+
+      const armGeo = new THREE.BoxGeometry(0.2, 1.5, 0.2)
+      const armMat = new THREE.MeshStandardMaterial({ color: 0x666666 })
+      const arm = new THREE.Mesh(armGeo, armMat)
+      arm.position.y = 1.05
+      group.add(arm)
+
+      const jointGeo = new THREE.SphereGeometry(0.15, 16, 16)
+      const jointMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3 })
+      const joint = new THREE.Mesh(jointGeo, jointMat)
+      joint.position.y = 1.8
+      group.add(joint)
+    } else if (node.type === 'conveyor') {
+      const conveyorGeo = new THREE.BoxGeometry(4, 0.3, 1)
+      const conveyorMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.15 })
+      const conveyor = new THREE.Mesh(conveyorGeo, conveyorMat)
+      conveyor.position.y = 0.15
+      group.add(conveyor)
+
+      for (let i = -1; i <= 1; i += 0.5) {
+        const rollerGeo = new THREE.CylinderGeometry(0.1, 0.1, 1, 8)
+        const rollerMat = new THREE.MeshStandardMaterial({ color: 0x444444 })
+        const roller = new THREE.Mesh(rollerGeo, rollerMat)
+        roller.rotation.z = Math.PI / 2
+        roller.position.set(i * 1.5, 0.15, 0)
+        group.add(roller)
+      }
+    } else if (node.type === 'sensor') {
+      const sensorGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.5, 12)
+      const sensorMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3 })
+      const sensor = new THREE.Mesh(sensorGeo, sensorMat)
+      sensor.position.y = 0.25
+      group.add(sensor)
+
+      const lensGeo = new THREE.SphereGeometry(0.12, 12, 12)
+      const lensMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.8 })
+      const lens = new THREE.Mesh(lensGeo, lensMat)
+      lens.position.y = 0.55
+      group.add(lens)
+    } else if (node.type === 'lift') {
+      const columnGeo = new THREE.BoxGeometry(0.3, 4, 0.3)
+      const columnMat = new THREE.MeshStandardMaterial({ color: 0x555555 })
+      const column = new THREE.Mesh(columnGeo, columnMat)
+      column.position.y = 2
+      group.add(column)
+
+      const platformGeo = new THREE.BoxGeometry(2, 0.2, 2)
+      const platformMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.2 })
+      const platform = new THREE.Mesh(platformGeo, platformMat)
+      platform.position.y = 1
+      group.add(platform)
+    } else if (node.type === 'agv') {
+      const bodyGeo = new THREE.BoxGeometry(1.5, 0.4, 0.8)
+      const bodyMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.15 })
+      const body = new THREE.Mesh(bodyGeo, bodyMat)
+      body.position.y = 0.35
+      group.add(body)
+
+      const wheelGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.1, 12)
+      const wheelMat = new THREE.MeshStandardMaterial({ color: 0x333333 })
+      const wheelPositions = [[-0.5, -0.35], [-0.5, 0.35], [0.5, -0.35], [0.5, 0.35]]
+      wheelPositions.forEach(pos => {
+        const wheel = new THREE.Mesh(wheelGeo, wheelMat)
+        wheel.rotation.x = Math.PI / 2
+        wheel.position.set(pos[0], 0.15, pos[1])
+        group.add(wheel)
+      })
+    } else if (node.type === 'pipeline-node') {
+      const nodeGeo = new THREE.OctahedronGeometry(0.4, 0)
+      const nodeMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3 })
+      const nodeMesh = new THREE.Mesh(nodeGeo, nodeMat)
+      nodeMesh.position.y = 0.5
+      group.add(nodeMesh)
+    }
+
+    const labelCanvas = document.createElement('canvas')
+    labelCanvas.width = 256
+    labelCanvas.height = 64
+    const labelCtx = labelCanvas.getContext('2d')
+    labelCtx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+    labelCtx.roundRect(0, 0, 256, 64, 8)
+    labelCtx.fill()
+    labelCtx.fillStyle = '#ffffff'
+    labelCtx.font = 'bold 20px Arial'
+    labelCtx.textAlign = 'center'
+    labelCtx.textBaseline = 'middle'
+    labelCtx.fillText(node.params.name || node.type, 128, 32)
+
+    const labelTex = new THREE.CanvasTexture(labelCanvas)
+    const labelMat = new THREE.SpriteMaterial({ map: labelTex })
+    const label = new THREE.Sprite(labelMat)
+    label.scale.set(2, 0.5, 1)
+    label.position.y = 3
+    group.add(label)
+
+    this.setDeviceUserData(group, this.configNodes.length + 100)
+    this.configNodes.push(group)
+    this.scene.add(group)
+  }
+
+  createConfigPath(path) {
+    if (!path.points3D || path.points3D.length < 2) return
+
+    const points = path.points3D.map(p => new THREE.Vector3(p.x, 0.1, p.z))
+    const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.5)
+    const tubeGeo = new THREE.TubeGeometry(curve, 100, (path.width || 8) * 0.03, 8, false)
+    const tubeMat = new THREE.MeshStandardMaterial({ 
+      color: new THREE.Color(path.color || '#1890FF'), 
+      emissive: new THREE.Color(path.color || '#1890FF'),
+      emissiveIntensity: 0.2,
+      transparent: true,
+      opacity: 0.6
+    })
+    const tube = new THREE.Mesh(tubeGeo, tubeMat)
+    tube.userData.pathId = path.id
+    tube.userData.configPath = true
+    
+    this.configPaths.push(tube)
+    this.scene.add(tube)
+
+    const linePoints = curve.getPoints(100)
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints)
+    const lineMat = new THREE.LineBasicMaterial({ 
+      color: new THREE.Color(path.color || '#1890FF'),
+      linewidth: 2
+    })
+    const line = new THREE.Line(lineGeo, lineMat)
+    line.position.y = 0.02
+    this.configPaths.push(line)
+    this.scene.add(line)
+  }
+
+  getNodeColor(type) {
+    const colors = {
+      'station': '#1890FF',
+      'robot-arm': '#52C41A',
+      'conveyor': '#FAAD14',
+      'sensor': '#722ED1',
+      'lift': '#13C2C2',
+      'agv': '#EB2F96',
+      'pipeline-node': '#F5222D'
+    }
+    return colors[type] || '#1890FF'
   }
 }
 

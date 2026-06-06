@@ -194,6 +194,52 @@ export class Simulation {
   getPath() {
     return this.path
   }
+
+  loadConfig(config) {
+    if (config.stations && config.stations.length > 0) {
+      this.stations = config.stations.map(s => ({
+        id: s.id,
+        name: s.name,
+        position: this.getStationProgressPosition(s.position),
+        processTime: s.processTime,
+        capacity: s.capacity || 1,
+        dependencies: s.dependencies || []
+      }))
+    }
+
+    if (config.paths && config.paths.length > 0 && config.paths[0].points) {
+      const points = config.paths[0].points
+      if (points.length >= 2) {
+        const controlPoints = points.map(p => 
+          new THREE.Vector3(p.x, p.y || 0.5, p.z)
+        )
+        this.path = new THREE.CatmullRomCurve3(controlPoints, false)
+        this.pathLength = this.path.getLength()
+      }
+    }
+
+    this.store.addOutput('仿真配置已从组态编辑器更新')
+  }
+
+  getStationProgressPosition(position3D) {
+    if (!this.path || this.pathLength === 0) return 0.5
+    
+    let minDist = Infinity
+    let closestProgress = 0.5
+    const targetPoint = new THREE.Vector3(position3D.x, 0.5, position3D.z)
+    
+    for (let i = 0; i <= 100; i++) {
+      const t = i / 100
+      const pathPoint = this.path.getPointAt(t)
+      const dist = pathPoint.distanceTo(targetPoint)
+      if (dist < minDist) {
+        minDist = dist
+        closestProgress = t
+      }
+    }
+    
+    return closestProgress
+  }
 }
 
 export default Simulation

@@ -59,7 +59,9 @@ import {
   Box, 
   DataLine, 
   Setting, 
-  DArrowLeft 
+  DArrowLeft,
+  EditPen,
+  Cpu
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -85,6 +87,16 @@ const menuItems = [
     path: '/main/settings',
     name: '系统设置',
     icon: Setting
+  },
+  {
+    path: '/main/config-editor',
+    name: '组态编辑器',
+    icon: EditPen
+  },
+  {
+    path: '/main/advanced-simulation',
+    name: '高阶仿真',
+    icon: Cpu
   }
 ]
 
