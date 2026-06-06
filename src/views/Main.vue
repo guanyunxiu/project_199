@@ -4,13 +4,11 @@
     <div class="main-content">
       <Sidebar />
       <div class="content-wrapper">
-        <div class="scene-wrapper">
-          <Scene3D />
-        </div>
-        <div class="panels-wrapper">
-          <ControlPanel />
-          <DataPanel />
-        </div>
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
       </div>
     </div>
     <DeviceInfo v-if="simulationStore.selectedDevice" />
@@ -24,14 +22,10 @@ import { useUserStore } from '@/store/user'
 import { useSimulationStore } from '@/store/simulation'
 import Header from '@/components/Header.vue'
 import Sidebar from '@/components/Sidebar.vue'
-import Scene3D from '@/components/Scene3D.vue'
-import ControlPanel from '@/components/ControlPanel.vue'
-import DataPanel from '@/components/DataPanel.vue'
 import DeviceInfo from '@/components/DeviceInfo.vue'
 
 const userStore = useUserStore()
 const simulationStore = useSimulationStore()
-const route = useRoute()
 const router = useRouter()
 
 onMounted(() => {
@@ -109,5 +103,15 @@ onMounted(() => {
     padding: 10px;
     gap: 10px;
   }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

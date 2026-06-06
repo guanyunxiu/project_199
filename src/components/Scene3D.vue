@@ -10,9 +10,11 @@
         </el-button>
       </el-button-group>
     </div>
-    <div v-if="loading" class="scene-loading">
-      <Loading />
-    </div>
+    <transition name="fade-loading">
+      <div v-if="loading" class="scene-loading">
+        <Loading :progress="loadingProgress" />
+      </div>
+    </transition>
     <div v-if="hoveredDevice" class="device-tooltip" :style="tooltipStyle">
       <div class="tooltip-title">{{ hoveredDevice.name }}</div>
       <div class="tooltip-status" :class="hoveredDevice.status">
@@ -33,9 +35,29 @@ import Loading from './Loading.vue'
 
 const containerRef = ref(null)
 const loading = ref(true)
+const loadingProgress = ref(0)
 const scene3D = shallowRef(null)
 const hoveredDevice = ref(null)
 const tooltipPosition = ref({ x: 0, y: 0 })
+
+let progressTimer = null
+
+const startProgress = () => {
+  loadingProgress.value = 0
+  progressTimer = setInterval(() => {
+    if (loadingProgress.value < 90) {
+      loadingProgress.value += Math.random() * 15
+    }
+  }, 200)
+}
+
+const stopProgress = () => {
+  if (progressTimer) {
+    clearInterval(progressTimer)
+    progressTimer = null
+  }
+  loadingProgress.value = 100
+}
 
 const simulationStore = useSimulationStore()
 
@@ -78,33 +100,32 @@ const handleDeviceHover = (device, event) => {
 onMounted(async () => {
   await nextTick()
   
+  startProgress()
+  
   try {
-    console.log('Step 1: Creating Scene3D instance')
     scene3D.value = new Scene3D()
-    console.log('Step 2: Scene3D instance created')
     scene3D.value.onDeviceClick = handleDeviceClick
     scene3D.value.onDeviceHover = handleDeviceHover
     
-    console.log('Step 3: Calling init()')
     await scene3D.value.init(containerRef.value)
-    console.log('Step 4: init() completed')
     
     simulationStore.setScene3D(scene3D.value)
-    console.log('Step 5: Scene3D stored')
+    
+    stopProgress()
     
     setTimeout(() => {
       loading.value = false
-      console.log('Step 6: Loading complete')
-    }, 1500)
+    }, 500)
   } catch (error) {
     console.error('3D场景初始化失败:', error)
-    console.error('Error stack:', error.stack)
+    stopProgress()
     ElMessage.error('3D场景初始化失败')
     loading.value = false
   }
 })
 
 onUnmounted(() => {
+  stopProgress()
   scene3D.value?.dispose()
 })
 </script>
@@ -121,6 +142,16 @@ onUnmounted(() => {
     display: block;
     width: 100%;
     height: 100%;
+  }
+
+  .fade-loading-enter-active,
+  .fade-loading-leave-active {
+    transition: opacity 0.4s ease;
+  }
+
+  .fade-loading-enter-from,
+  .fade-loading-leave-to {
+    opacity: 0;
   }
 
   .scene-toolbar {
